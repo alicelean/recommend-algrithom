@@ -1,0 +1,88 @@
+
+import java.text.SimpleDateFormat
+import java.util.{Calendar, Date}
+import org.apache.spark.mllib.fpm.FPGrowth
+import org.apache.spark.sql.types.{StringType, StructField, StructType}
+import org.apache.spark.sql.{Row, SparkSession}
+import org.elasticsearch.spark.rdd.EsSpark
+import org.apache.spark.SparkConf
+import org.apache.spark.SparkContext
+object fpGrowth {
+
+
+
+
+
+    def main(args:Array[String]): Unit = {
+
+      val spark  = SparkSession.builder
+        .master("local")
+        .appName("appName")
+       .getOrCreate()
+      ////加载数据
+      val sc=spark.sparkContext
+      val data=sc.textFile("C:/linshidata/data2.txt")
+//      data.foreach(println)
+      //把数据通过空格分割
+      val transactions=data.map(x=>x.split(","))
+           transactions.cache()
+
+      //创建一个FPGrowth的算法实列
+      val minSupport=0.2
+      //最小置信度
+      val minConfidence=0.8
+      //数据分区
+      val numPartitions=2
+      val fpg = new FPGrowth()
+
+      //设置训练时候的最小支持度和数据分区
+      fpg.setMinSupport(minSupport)
+      fpg.setNumPartitions(numPartitions)
+
+
+
+      //把数据带入算法进行信息挖掘
+      val model = fpg.run(transactions)
+
+      //查看所有的频繁项集，并且列出它出现的次数
+      val freaItem= model.freqItemsets.collect()
+
+
+//      freaItem .foreach(itemset=>{
+//        println( itemset.items.mkString("[", ",", "]")+","+itemset.freq)
+//      })
+
+
+      //过滤掉频率小于指定值得频繁项
+      val minfreq=2
+//      freaItem.filter(x=>x.freq>2).foreach(x=>println(x.freq))
+      val minitems=1
+      val newresult=freaItem.filter(x=>x.freq>minfreq)
+                    .filter(x=>x.items.length>minitems)
+                    .map(x=>x.items.mkString(","))
+
+      newresult.foreach(x=>println(x))
+
+
+      //通过置信度筛选出推荐规则则
+       val rules=model.generateAssociationRules(minConfidence)
+      //antecedent表示前项
+      //consequent表示后项
+      //confidence表示规则的置信度
+      //这里可以把规则写入到Mysql数据库中，以后使用来做推荐
+      //如果规则过多就把规则写入redis，这里就可以直接从内存中读取了，我选择的方式是写入Mysql，然后再把推荐清单写入redis
+
+
+
+//      rules.collect().foreach(rule=>{
+//        println(rule.antecedent.mkString(",")+"-->"+
+//          rule.consequent.mkString(",")+":"+ rule.confidence)
+//      })
+//      //查看规则生成的数量
+//      println(model.generateAssociationRules(minConfidence).collect().length)
+//      val actionlist=Array("icon4","icon3")
+
+   
+   }
+
+}
